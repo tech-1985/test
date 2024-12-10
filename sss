@@ -1,22 +1,9 @@
-
-	@Query(value = """
-			SELECT
-			    tblSoftRel.PCMR01_CONCERN_C as concernC,
-			    tblSoftRel.PCMR01_PART_R as partR,
-			    tblProg.PCMS01_MDL_YR_R as mdlYrR,
-			    tblProg.PCMS01_PGM_N as pgmN
-			FROM dbo.WPCMR01_PART tblSoftRel
-			LEFT JOIN dbo.WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R
-			LEFT JOIN dbo.WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K
-			WHERE tblSoftRel.PCMR01_ARCH_F = 'N'
-			AND tblSoftRel.PCMR01_RELD_F = 'N'
-			AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN', 'HWCUT', 'VCMHC')
-			AND (UPPER(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId
-			     OR tblSoftRel.PCMR01_PROJ_CTL_ENG_CDSID_C = :userId
-			     OR tblSoftRel.PCMR01_PWRTRN_CALIB_CDSID_C = :userId)
-			ORDER BY
-			    tblSoftRel.PCMR01_CONCERN_C,
-			    tblProg.PCMS01_MDL_YR_R,
-			    tblProg.PCMS01_PGM_N
-			""", nativeQuery = true)
-	List<Object[]> findReleaseInProcessByUserId(@Param("userId") String userId);
+logging:
+  level:
+    org:
+      hibernate:
+        SQL: DEBUG
+        type:
+          descriptor:
+            sql:
+              BasicBinder: TRACE
