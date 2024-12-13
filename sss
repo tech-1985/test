@@ -1,1 +1,3 @@
-curl -H "Authorization: Bearer <your_token>" https://<ARTIFACTORY_URL>/artifactory/api/system/ping
+AUTH_HEADER="Authorization: Bearer $ARTIFACTORY_TOKEN"
+CURL_FLAGS="--header \"$AUTH_HEADER\""
+export CURL_FLAGS
