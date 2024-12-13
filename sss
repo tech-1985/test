@@ -1,59 +1,17 @@
-@Query(value = """
-			    SELECT
-			        tblSoftRel.PCMR01_CONCERN_C,
-			        tblSoftRel.PCMR01_PART_R,
-			        tblProg.PCMS01_MDL_YR_R,
-			        tblProg.PCMS01_PGM_N
-			    FROM
-			        dbo.WPCMR01_PART tblSoftRel
-			    LEFT JOIN
-			        dbo.WPCMR04_PGM_PART tblProgJ
-			    ON
-			        tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R
-			    LEFT JOIN
-			        dbo.WPCMS01_PGM_DESC tblProg
-			    ON
-			        tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K
-			    WHERE
-			        tblSoftRel.PCMR01_ARCH_F = 'N'
-			        AND UPPER(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId
-			        AND tblSoftRel.PCMR01_RELD_F = 'N'
-			        AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN', 'HWCUT', 'VCMHC')
-			        AND (
-			            (
-			                tblSoftRel.PCMR01_STAT_C IN ('PeadComplete')
-			                AND NOT EXISTS (
-			                    SELECT 1
-			                    FROM dbo.WPCMR21_SIGNOFF_PART tblSub
-			                    WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R
-			                      AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('CALUP', 'CLSUP', 'CLOBD', 'SUDEP', 'CLDEP', 'PCDEP', 'SUDEV', 'CLDEV', 'PCDEV')
-			                )
-			                AND EXISTS (
-			                    SELECT 1
-			                    FROM dbo.WPCMR21_SIGNOFF_PART tblSub
-			                    WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R
-			                      AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('EOLPT', 'EOLVO', 'PEERR', 'PEERA', 'HWPER', 'SUPPR', 'IVSEM')
-			                )
-			                AND NOT EXISTS (
-			                    SELECT 1
-			                    FROM dbo.WPCMR02_PART_FIRMWARE tblSub
-			                    WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R
-			                )
-			            )
-			            OR
-			            (
-			                tblSoftRel.PCMR01_STAT_C IN ('FirmwareEdit')
-			                AND EXISTS (
-			                    SELECT 1
-			                    FROM dbo.WPCMR21_SIGNOFF_PART tblSub
-			                    WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R
-			                      AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('EOLPT', 'EOLVO', 'PEERR', 'PEERA', 'HWPER', 'SUPPR', 'IVSEM')
-			                )
-			            )
-			        )
-			    ORDER BY
-			        tblSoftRel.PCMR01_CONCERN_C,
-			        tblProg.PCMS01_MDL_YR_R,
-			        tblProg.PCMS01_PGM_N
-			""", nativeQuery = true)
-	List<Object[]> fetchProgDetailsForSendPeerReviewByUserId(@Param("userId") String userId);
+dependencies {
+    api libs.org.springframework.boot.spring.boot.starter.data.jpa
+    api libs.org.springframework.boot.spring.boot.starter.web
+    api libs.org.springframework.boot.spring.boot.starter.aop
+    api libs.org.springframework.boot.spring.boot.starter.actuator
+    api libs.com.mysql.mysql.connector.j
+    api libs.org.springdoc.springdoc.openapi.starter.webmvc.ui
+    api libs.org.springframework.boot.spring.boot.starter.mail
+    api libs.jakarta.xml.bind.jakarta.xml.bind.api
+    api libs.org.glassfish.jaxb.jaxb.runtime
+    api libs.org.apache.poi.poi.ooxml
+    api libs.net.logstash.logback.logstash.logback.encoder
+    api libs.org.slf4j.slf4j.api
+    api libs.org.springframework.boot.spring.boot.configuration.processor
+    testImplementation libs.com.h2database.h2
+    testImplementation libs.org.springframework.boot.spring.boot.starter.test
+}
