@@ -1,0 +1,622 @@
+package com.ford.gpcse.repository;
+
+import com.ford.gpcse.common.Constants;
+import com.ford.gpcse.dto.*;
+import com.ford.gpcse.entity.Part;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Repository interface for managing Part entities. This interface extends
+ * JpaRepository and JpaSpecificationExecutor for basic CRUD operations and
+ * query capabilities.
+ */
+@Repository
+public interface PartRepository extends JpaRepository<Part, String>, JpaSpecificationExecutor<Part> {
+
+    /**
+     * Fetches the supplier code based on the provided part number.
+     *
+     * @param partNumber The part number for which to fetch the supplier code.
+     * @return The supplier code as a String.
+     */
+    @Query("SELECT p.supplier.suplC FROM Part p WHERE p.partR = :partNumber")
+    String fetchSupplierByPartNumber(@Param("partNumber") String partNumber);
+
+    /**
+     * Retrieves the calibration code associated with a given part number.
+     *
+     * @param partR The part number to look up.
+     * @return The calibration code as a String.
+     */
+    @Query("SELECT p.pwrtrnCalibCdsidC FROM Part p WHERE p.partR = :partR")
+    String fetchCalibrationCodeByPartR(@Param("partR") String partR);
+
+    /**
+     * Fetches detailed information about parts for replacement.
+     *
+     * @param oldPartNumber The part number to be replaced.
+     * @param newPartNumber The new part number.
+     * @return A list of ReplaceSblPartDetailsDto containing part details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.ReplaceSblPartDetailsDto(p.moduleType.moduleTypC, "
+            + "p.microType.microTypC, p.supplier.suplC, "
+            + "(SELECT COUNT(sub) FROM Part sub WHERE sub.partR = :newPartNumber)) "
+            + "FROM Part p WHERE p.partR = :oldPartNumber")
+    Optional<List<ReplaceSblPartDetailsDto>> fetchPartDetails(@Param("oldPartNumber") String oldPartNumber,
+                                                              @Param("newPartNumber") String newPartNumber);
+
+    /**
+     * Retrieves parts related to a specific firmware.
+     *
+     * @param mCurrentPbl          The current firmware version.
+     * @param hardwareReleaseTypes List of hardware release types to filter.
+     * @return A list of PartFirwareDto containing part details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.PartFirwareDto(p.partR, p.partNumX, p.calibPartR, p.stratRelC, "
+            + "p.engineerCdsidC, p.hardwarePartR, mt.microTypX, p.chipD, p.stratCalibPartR, p.catchWordC, "
+            + "p.releaseUsage, p.releaseType, p.stratPartR, p.cmtX, p.coreHardwarePartR, p.concernC) " + "FROM Part p "
+            + "JOIN p.releaseType rt " + "JOIN p.moduleType m " + "LEFT JOIN p.microType mt "
+            + "WHERE rt.relTypC IN :hardwareReleaseTypes "
+            + "AND p.partR IN (SELECT pf.part.partR FROM PartFirmware pf WHERE pf.fileN = :mCurrentPbl) "
+            + "AND p.reldF = 'Y' " + "ORDER BY mt.microTypX, p.hardwarePartR")
+    Optional<List<PartFirwareDto>> fetchPartsByFirmware(@Param("mCurrentPbl") String mCurrentPbl,
+                                                        @Param("hardwareReleaseTypes") List<String> hardwareReleaseTypes);
+
+    /**
+     * Fetches firmware details based on a WERS concern.
+     *
+     * @param wersConcern The concern to filter firmware details.
+     * @return A list of FirmwareDto containing firmware details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.FirmwareDto(p.partR, p.partNumX, p.calibR, p.stratRelC, "
+            + "p.engineerCdsidC, p.hardwarePartR, mt.microTypX, p.chipD, p.stratCalibPartR, p.catchWordC, "
+            + "ru.relUsgX, r.relTypX, p.wersNtcR, p.concernC, p.cmtX, p.pwrtrnCalibCdsidC, "
+            + "s.suplX, p.coreHardwareCdsidC, p.coreHardwarePartR) " + "FROM Part p " + "JOIN p.releaseType r "
+            + "JOIN p.releaseUsage ru " + "JOIN p.moduleType m " + "LEFT JOIN p.microType mt "
+            + "LEFT JOIN p.supplier s " + "WHERE p.statC IS NOT NULL " + "AND p.concernC = :wersConcern "
+            + "ORDER BY r.relTypC, ru.relUsgC, p.concernC DESC, p.cmtX, p.partR")
+    Optional<List<FirmwareDto>> fetchFirmwareDetailsByWersConcern(@Param("wersConcern") String wersConcern);
+
+    /**
+     * Fetches firmware details based on a WERS notice.
+     *
+     * @param wersNotice The notice to filter firmware details.
+     * @return A list of FirmwareDto containing firmware details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.FirmwareDto(p.partR, p.partNumX, p.calibR, p.stratRelC, "
+            + "p.engineerCdsidC, p.hardwarePartR, mt.microTypX, p.chipD, p.stratCalibPartR, p.catchWordC, "
+            + "ru.relUsgX, r.relTypX, p.wersNtcR, p.concernC, p.cmtX, p.pwrtrnCalibCdsidC, "
+            + "s.suplX, p.coreHardwareCdsidC, p.coreHardwarePartR) " + "FROM Part p " + "JOIN p.releaseType r "
+            + "JOIN p.releaseUsage ru " + "JOIN p.moduleType m " + "LEFT JOIN p.microType mt "
+            + "LEFT JOIN p.supplier s " + "WHERE p.statC IS NOT NULL " + "AND p.wersNtcR LIKE :wersNotice "
+            + "ORDER BY r.relTypC, ru.relUsgC, p.concernC DESC, p.cmtX, p.partR")
+    Optional<List<FirmwareDto>> fetchFirmwareDetailsByWersNotice(@Param("wersNotice") String wersNotice);
+
+    /**
+     * Fetches firmware details based on program keys.
+     *
+     * @param programKeys List of program keys to filter.
+     * @return A list of FirmwareDto containing firmware details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.FirmwareDto(tblSoftRel.partR, tblSoftRel.partNumX, "
+            + "tblSoftRel.calibR, tblSoftRel.stratRelC, tblSoftRel.engineerCdsidC, "
+            + "tblSoftRel.hardwarePartR, tblMM.microTypX, tblSoftRel.chipD, "
+            + "tblSoftRel.stratCalibPartR, tblSoftRel.catchWordC, ru.relUsgC, "
+            + "rt.relTypC, tblSoftRel.wersNtcR, tblSoftRel.concernC, "
+            + "tblSoftRel.cmtX, tblSoftRel.pwrtrnCalibCdsidC, tblSup.suplX, tblMM.microTypOwnrCdsidC, "
+            + "tblSoftRel.coreHardwarePartR) " + "FROM Part tblSoftRel "
+            + "INNER JOIN tblSoftRel.moduleType tblModType " + "LEFT JOIN tblSoftRel.microType tblMM "
+            + "LEFT JOIN tblSoftRel.supplier tblSup " + "LEFT JOIN tblSoftRel.releaseUsage ru "
+            + "LEFT JOIN tblSoftRel.releaseType rt " + "WHERE tblSoftRel.statC IS NOT NULL "
+            + "AND tblSoftRel.partR IN ( " + "SELECT tblProgramPart.part.partR "
+            + "FROM ProgramDescription tblProgramDesc " + "INNER JOIN ProgramPart  tblProgramPart "
+            + "ON tblProgramDesc.pgmK = tblProgramPart.pgmK "
+            + "WHERE tblProgramDesc.pgmK IN :programKeys OR tblProgramDesc.pgmK = -999998) "
+            + "ORDER BY rt.relTypC, ru.relUsgC, tblSoftRel.concernC DESC, tblSoftRel.cmtX, tblSoftRel.partR")
+    Optional<List<FirmwareDto>> fetchFirmwareDetailsByPrograms(@Param("programKeys") List<Long> programKeys);
+
+    /**
+     * Fetches release status details for parts.
+     *
+     * @return A list of ReleaseStatusDto containing release status details.
+     */
+    @Query("SELECT DISTINCT  new com.ford.gpcse.dto.ReleaseStatusDto(p.concernC, p.partR, p.statC, m.moduleTypX, rt.relTypX, p.concernY) "
+            + "FROM Part p " + "JOIN p.supplier sup " + "JOIN p.moduleType m " + "JOIN p.releaseType rt "
+            + "WHERE p.archF = 'N' " + "AND rt.relTypC NOT IN ('HRDCN', 'HWPUT', 'VCMHC') "
+            + "AND p.statC NOT IN ('NewPnRequest', 'Complete') " + "ORDER BY p.concernC DESC, p.partR")
+    Optional<List<ReleaseStatusDto>> fetchReleaseStatusDetails();
+
+    /**
+     * Fetches release status details based on the specified WERS concern notice.
+     * This query retrieves a set of part details, including their status,
+     * calibration references, and associated types, filtered by the given WERS
+     * concern code. The results are ordered by concern code in descending order and
+     * then by part number.
+     *
+     * @param wersNotice The WERS concern code to filter the parts.
+     * @return A ReleaseStatusConcernDto containing the details of the matching
+     * parts.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.ReleaseStatusConcernDto(p.partR, p.partNumX, p.calibR, p.stratRelC, p.engineerCdsidC, p.hardwarePartR, mt.microTypX, p.chipD, p.stratCalibPartR, p.statC, sup.suplC, p.coreHardwarePartR, rt.relTypC, ru.relUsgC) "
+            + "FROM Part p " + "JOIN p.supplier sup " + "INNER JOIN p.moduleType m " + "INNER JOIN p.releaseType rt "
+            + "INNER JOIN p.releaseUsage ru " + "LEFT JOIN p.microType mt " + "WHERE p.concernC = :wersNotice "
+            + "AND p.archF = 'N' " + "AND rt.relTypC NOT IN ('HRDCN', 'HWPUT', 'VCMHC') "
+            + "AND p.statC NOT IN ('NewPnRequest', 'Complete') " + "ORDER BY p.concernC DESC, p.partR")
+    Optional<List<ReleaseStatusConcernDto>> fetchReleaseStatusDetailsByWersConcern(
+            @Param("wersNotice") String wersNotice);
+
+    /**
+     * Updates the status and calibration reference for a specified part.
+     *
+     * @param wersNtcR The new WERS notice reference to set.
+     * @param partR    The part number to update.
+     * @return The number of affected rows.
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Part p " + "SET p.statC = 'HardLock', " + "p.stratCalibPartR = p.partR, " + "p.wersNtcR = :wersNtcR "
+            + "WHERE p.partR = :partR")
+    int updatePartStatusAndCalib(@Param("wersNtcR") String wersNtcR, @Param(Constants.PART_R) String partR);
+
+    /**
+     * Fetches parts for sending email notifications based on part numbers.
+     *
+     * @param partNumbers A list of part numbers to filter.
+     * @return A list of HardwareEmailPartDto containing part details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.HardwareEmailPartDto(p.partR, p.engineerCdsidC, p.hardwarePartR, p.coreHardwarePartR, m.microTypX) "
+            + "FROM Part p " + "JOIN p.microType m " + "WHERE p.reldF = 'Y' " + "AND p.partR IN :partNumbers "
+            + "ORDER BY p.partR")
+    Optional<List<HardwareEmailPartDto>> fetchPartsForEmail(@Param("partNumbers") List<String> partNumbers);
+
+    /**
+     * Counts the number of parts with the specified part number.
+     *
+     * @param partNumber The part number to count.
+     * @return The count of parts with the given part number.
+     */
+    @Query("SELECT COUNT(p) FROM Part p WHERE p.partR = :partNumber")
+    int countByPartNumber(@Param("partNumber") String partNumber);
+
+    /**
+     * Fetches input data for Prism based on the specified part number.
+     *
+     * @param partNumber The part number to look up.
+     * @return an Object containing part details.
+     */
+    @Query(value = "SELECT tblSoftRel.PCMR01_PART_R, tblSoftRel.PCMR01_CALIB_R, "
+            + "tblSoftRel.PCMR01_WERS_NTC_R, tblSoftRel.PCMR01_STRAT_REL_C, "
+            + "tblSoftRel.PCMR01_STRAT_CALIB_PART_R, tblSoftRel.PCMR01_CHIP_D, "
+            + "tblSoftRel.PCMR01_HARDWARE_PART_R, tblSoftRel.PCMR01_CATCHWORD_C, "
+            + "tblSoftRel.PCMR01_RELD_Y, tblMainMicro.PCMR19_MICRO_TYP_X, " + "tblSoftRel.PCMR24_REL_USG_C, "
+            + "(SELECT TOP 1 PCMS01_PGM_N FROM WPCMS01_PGM_DESC "
+            + "INNER JOIN WPCMR04_PGM_PART ON WPCMS01_PGM_DESC.PCMS01_PGM_K = WPCMR04_PGM_PART.PCMS01_PGM_K "
+            + "WHERE WPCMR04_PGM_PART.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R), "
+            + "(SELECT TOP 1 PCMR17_SUPL_X FROM WPCMR17_SUPL "
+            + "WHERE WPCMR17_SUPL.PCMR17_SUPL_C = tblSoftRel.PCMR17_SUPL_C), "
+            + "(SELECT TOP 1 PCMS01_ENG_N FROM WPCMS01_PGM_DESC "
+            + "INNER JOIN WPCMR04_PGM_PART ON WPCMS01_PGM_DESC.PCMS01_PGM_K = WPCMR04_PGM_PART.PCMS01_PGM_K "
+            + "WHERE WPCMR04_PGM_PART.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R) " + "tblSoftRel.PCMR15_REL_TYP_C "
+            + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR19_MICRO_TYP tblMainMicro ON tblSoftRel.PCMR19_MICRO_TYP_C = tblMainMicro.PCMR19_MICRO_TYP_C "
+            + "WHERE tblSoftRel.PCMR01_PART_R = :partNumber "
+            + "AND tblSoftRel.PCMR01_ARCH_F = 'N'", nativeQuery = true)
+    Optional<Object[]> fetchPrismInputDataByPartNumber(@Param("partNumber") String partNumber);
+
+    /**
+     * Fetches part numbers based on the specified concern.
+     *
+     * @param wersConcern The concern code to filter part numbers.
+     * @return A list of part numbers associated with the concern.
+     */
+    @Query("SELECT p.partR FROM Part p WHERE p.concernC = :wersConcern")
+    Optional<List<String>> fetchPartNumbersByConcern(@Param("wersConcern") String wersConcern);
+
+    /**
+     * Fetches details of parts based on a list of part numbers.
+     *
+     * @param partNumbers The list of part numbers to look up.
+     * @return A list of Object arrays containing part details.
+     */
+    @Query("SELECT p.partR, " + "p.releaseType.relTypC, " + "p.backwardCompat.backwardCompatC, " + "p.hardwarePartR, "
+            + "p.releaseUsage.relUsgC " + "FROM Part p " + "WHERE p.partR IN :partNumbers")
+    List<Object[]> fetchParts(@Param("partNumbers") List<String> partNumbers);
+
+    /**
+     * Fetches parts along with their calibration details based on a list of part
+     * numbers.
+     *
+     * @param partNumbers The list of part numbers to filter.
+     * @return A list of WersTextPartCalibDto containing part and calibration
+     * details.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.WersTextPartCalibDto(" + "p.partR, p.replacedPartR, p.catchword.catchwordC, "
+            + "p.partNumX, p.calibR, p.hardwarePartR, p.statC, "
+            + "(SELECT sub.calibR FROM Part sub WHERE sub.partR = p.replacedPartR), "
+            + "(SELECT sub.catchWordC FROM Part sub WHERE sub.partR = p.replacedPartR)) " + "FROM Part p "
+            + "WHERE p.partR IN :partNumbers " + "ORDER BY p.replacedPartR, p.partNumX, p.partR")
+    List<WersTextPartCalibDto> fetchPartsWithCalib(@Param("partNumbers") List<String> partNumbers);
+
+    /**
+     * Fetches module base information for parts managed by a specific engineer.
+     *
+     * @param engineerCdsid The engineer's CDSID to filter parts.
+     * @return A list of ModuleBaseInformationDto containing module information.
+     */
+    @Query("SELECT new com.ford.gpcse.dto.ModuleBaseInformationDto(p.partR, p.concernC, p.statC) " + "FROM Part p "
+            + "WHERE p.archF = 'N' " + "AND upper(p.engineerCdsidC) = :engineerCdsid " + "AND p.reldF = 'N' "
+            + "AND p.releaseType.relTypC NOT IN ('HRDCN', 'HWCUT', 'VCMHC') "
+            + "AND p.statC IN ('PeadEdit', 'PeadComplete', 'FirmwareEdit', 'SoftLock') "
+            + "ORDER BY p.concernC, p.partR")
+    Optional<List<ModuleBaseInformationDto>> fetchModuleBaseInformation(@Param("engineerCdsid") String engineerCdsid);
+
+    /**
+     * Retrieves all parts by their IDs using a native query.
+     *
+     * @param partNumbers A list of part numbers to fetch.
+     * @return A list of Object arrays containing part details.
+     */
+    @Query(value = "SELECT tblSoftRel.PCMR01_PART_R, PCMR01_PART_NUM_X, PCMR01_CATCHWORD_C, "
+            + "PCMR01_CALIB_R, SUBSTRING(tblSoftRel.PCMR01_CALIB_R,0,9) ,SUBSTRING(tblSoftRel.PCMR01_CALIB_R,9,2) , PCMR01_STRAT_REL_C, "
+            + "PCMR01_RELD_Y, PCMR01_CONCERN_C, PCMR01_ENGINEER_CDSID_C, PCMR01_HARDWARE_PART_R, PCMR01_CHIP_D, PCMR01_WERS_NTC_R, "
+            + "PCMR01_STRAT_CALIB_PART_R, tblMainMicro.PCMR19_MICRO_TYP_X, PCMR01_HCR_R, PCMR24_REL_USG_X, PCMR01_SVC_MODULE_PART_R, "
+            + "PCMR01_CONCERN_Y, PCMR39_CREATE_USER_C, PCMR17_SUPL_X, PCMR15_REL_TYP_X, PCMR26_BACKWARD_COMPAT_X, "
+            + "PCMR01_REPLACED_PART_R, PCMR01_IPF_PART_R, PCMR01_BACKWARD_COMPAT_GRP_C, PCMR01_PWRTRN_CALIB_CDSID_C, PCMR01_STAT_C, PCMR01_CMT_X, PCMR01_STRAT_PART_R, "
+            + "(Select tblSub.PCMR21_USER_CDSID_C FROM WPCMR21_SIGNOFF_PART tblSub WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R and tblSub.PCMR20_SIGNOFF_TYP_C = 'PEERR'), "
+            + "PCMS01_IVS_PGM_D, PCMR01_BLD_LVL_C, PCMR01_PRTY_C, PCMR01_PRTY_DTL_X, PCMR01_PROJ_CTL_ENG_CDSID_C, "
+            + "(SELECT tblSub.PCMR21_USER_CDSID_C FROM WPCMR21_SIGNOFF_PART tblSub WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R and tblSub.PCMR20_SIGNOFF_TYP_C = 'HWPER'), "
+            + "(CASE WHEN (Select TOP 1 tSub.PCMR01_PART_R FROM WPCMR01_PART tSub WHERE tblSoftRel.PCMR01_PART_R = tSub.PCMR01_REPLACED_PART_R) IS NULL THEN 'N' ELSE 'Y' END), "
+            + "(SELECT tblSub.PCMR21_USER_CDSID_C FROM WPCMR21_SIGNOFF_PART tblSub WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R and tblSub.PCMR20_SIGNOFF_TYP_C = 'PEERR'), "
+            + "PCMR01_OTA_F, PCMR01_DOMAIN_N, PCMR01_DOMAIN_INSTNC_N, PCMR01_VEH_CAN_TYP_C, PCMR01_CORE_HARDWARE_PART_R, "
+            + "PCMR01_CORE_HARDWARE_CDSID_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N, tblProg.PCMS01_PLAT_N, tblProg.PCMS01_ENG_N, tblProg.PCMS01_TRANS_N, tblProg.PCMS01_ARCH_F, "
+            + "PCMR01_CAL_REL_PLAN_Y, PCMR01_CAL_REL_ACT_Y " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR19_MICRO_TYP tblMainMicro on tblSoftRel.PCMR19_MICRO_TYP_C = tblMainMicro.PCMR19_MICRO_TYP_C "
+            + "LEFT JOIN WPCMR17_SUPL tblSup on tblSoftRel.PCMR17_SUPL_C = tblSup.PCMR17_SUPL_C "
+            + "LEFT JOIN WPCMR15_REL_TYP tblRelType on tblSoftRel.PCMR15_REL_TYP_C = tblRelType.PCMR15_REL_TYP_C "
+            + "LEFT JOIN WPCMR24_REL_USG tblRelUsage on tblSoftRel.PCMR24_REL_USG_C = tblRelUsage.PCMR24_REL_USG_C "
+            + "LEFT JOIN WPCMR26_BACKWARD_COMPAT tblBackCompat on tblSoftRel.PCMR26_BACKWARD_COMPAT_C = tblBackCompat.PCMR26_BACKWARD_COMPAT_C "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgPart on tblProgPart.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg on tblProg.PCMS01_PGM_K = tblProgPart.PCMS01_PGM_K "
+            + "LEFT JOIN WPCMR39_LABEL_USG tblLabel on tblLabel.PCMR39_LABEL_USG_K = tblSoftRel.PCMR39_LABEL_USG_K "
+            + "WHERE tblSoftRel.PCMR01_PART_R IN :partNumbers "
+            + "ORDER BY PCMR01_WERS_NTC_R, PCMR01_CONCERN_C, PCMR01_PART_R, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N, tblProg.PCMS01_ENG_N, tblProg.PCMS01_TRANS_N", nativeQuery = true)
+    List<Object[]> findAllPartsByIds(@Param("partNumbers") List<String> partNumbers);
+
+    /**
+     * Fetches all Prism parts based on the provided part numbers, software part numbers, and WERS notices.
+     * This method executes a native SQL query that retrieves various details from multiple tables, including
+     * the part information, calibration data, program information, firmware file details, and microtype files.
+     * The query applies certain filters and conditions on the data, such as excluding parts related to 'SBL'
+     * and parts with completed calibration.
+     * The results are returned as a list of object arrays, where each array represents a row of results,
+     * containing various fields, such as part details, calibration data, firmware filenames, and microtype files.
+     *
+     * @param partNumbers A list of part numbers to filter the results.
+     * @param swPartNumbers A list of software part numbers to filter the results.
+     * @param wersNotices A list of WERS notices to filter the results.
+     *
+     * @return A list of object arrays representing the query results. Each array contains the following fields:
+     *
+     * @throws DataAccessException if there is an error executing the query or retrieving the data.
+     */
+    @Query(value = "SELECT IIF(SUBSTRING([PCMR01_PART_R], 6, 1) = '-', SUBSTRING([PCMR01_PART_R], 2, 23), [PCMR01_PART_R]), "
+            + "r01.PCMR01_CALIB_R, r01.PCMR01_WERS_NTC_R, (r01.PCMR01_STRAT_CALIB_PART_R + '.h32'), "
+            + "r01.PCMR01_STRAT_CALIB_PART_R, r01.PCMR01_CHIP_D, r01.PCMR01_HARDWARE_PART_R, r01.PCMR01_CATCHWORD_C, "
+            + "r01.PCMR01_RELD_Y, tblMainMicro.PCMR19_MICRO_TYP_X, r01.PCMR24_REL_USG_C, "
+            + "(SELECT TOP 1 PCMS01_PGM_N FROM WPCMS01_PGM_DESC "
+            + "INNER JOIN WPCMR04_PGM_PART ON WPCMS01_PGM_DESC.PCMS01_PGM_K = WPCMR04_PGM_PART.PCMS01_PGM_K "
+            + "WHERE WPCMR04_PGM_PART.PCMR01_PART_R = r01.PCMR01_PART_R), "
+            + "(SELECT TOP 1 PCMR17_SUPL_X FROM WPCMR17_SUPL WHERE WPCMR17_SUPL.PCMR17_SUPL_C = r01.PCMR17_SUPL_C), "
+            + "(SELECT TOP 1 PCMS01_ENG_N FROM WPCMS01_PGM_DESC "
+            + "INNER JOIN WPCMR04_PGM_PART ON WPCMS01_PGM_DESC.PCMS01_PGM_K = WPCMR04_PGM_PART.PCMS01_PGM_K "
+            + "WHERE WPCMR04_PGM_PART.PCMR01_PART_R = r01.PCMR01_PART_R), " + "r01.PCMR15_REL_TYP_C, PCMR24_REL_USG_X, "
+            + "(SELECT TOP 1 PCMR02_FILE_N FROM WPCMR03_FIRMWARE "
+            + "INNER JOIN WPCMR02_PART_FIRMWARE ON WPCMR03_FIRMWARE.PCMR03_FIRMWARE_K = WPCMR02_PART_FIRMWARE.PCMR03_FIRMWARE_K "
+            + "WHERE WPCMR03_FIRMWARE.PCMR03_FIRMWARE_N LIKE '%PDX%' AND WPCMR02_PART_FIRMWARE.PCMR01_PART_R = r01.PCMR01_PART_R) AS Pdx, "
+            + "(SELECT TOP 1 PCMR02_FILE_N FROM WPCMR03_FIRMWARE "
+            + "INNER JOIN WPCMR02_PART_FIRMWARE ON WPCMR03_FIRMWARE.PCMR03_FIRMWARE_K = WPCMR02_PART_FIRMWARE.PCMR03_FIRMWARE_K "
+            + "WHERE WPCMR03_FIRMWARE.PCMR03_FIRMWARE_N LIKE '%PART II%' AND WPCMR02_PART_FIRMWARE.PCMR01_PART_R = r01.PCMR01_PART_R) AS PartII, "
+            + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'AppSignId') AS AppSigningKey, "
+            + "PCMR14_CAN_NODE_D, PCMR14_CAN_EXPLCT_GTWY_C, PCMR14_CAN_SUB_NODE_ADDR_X, PCMR14_CAN_SUB_NETWRK_ADDR_X, "
+            + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'SblMicroType') AS SblMicroType, "
+            + "PCMR19_MICRO_PROTO_TYP_X, " + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'AppSignIdProto') AS AppSigningKeyProto, "
+            + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'SblMicroTypeProto') AS SblMicroTypeProto "
+            + "FROM WPCMR01_PART r01 "
+            + "INNER JOIN WPCMR14_MODULE_TYP tblModType ON r01.PCMR14_MODULE_TYP_C = tblModType.PCMR14_MODULE_TYP_C "
+            + "LEFT JOIN WPCMR19_MICRO_TYP tblMainMicro ON r01.PCMR19_MICRO_TYP_C = tblMainMicro.PCMR19_MICRO_TYP_C "
+            + "LEFT JOIN WPCMR24_REL_USG tblRelUsage ON r01.PCMR24_REL_USG_C = tblRelUsage.PCMR24_REL_USG_C "
+            + "WHERE r01.PCMR15_REL_TYP_C != 'SBL' AND r01.PCMR01_STAT_C IN ('HardLock', 'Complete') "
+            + "AND r01.PCMR01_STRAT_CALIB_PART_R NOT IN (SELECT PCMR01_STRAT_CALIB_PART_R FROM WPCMR01_PART "
+            + "WHERE PCMR01_STRAT_BUILD_COMP_F = 'Y' AND PCMR01_STRAT_CALIB_PART_R IS NOT NULL) AND r01.PCMR01_PART_R in :partNumbers AND r01.PCMR01_STRAT_CALIB_PART_R in :swPartNumbers AND r01.PCMR01_WERS_NTC_R in :wersNotices "
+            + "UNION ALL "
+            + "SELECT IIF(SUBSTRING([PCMR01_PART_R], 6, 1) = '-', SUBSTRING([PCMR01_PART_R], 2, 23), [PCMR01_PART_R]), "
+            + "r01.PCMR01_CALIB_R, r01.PCMR01_WERS_NTC_R, (r01.PCMR01_STRAT_PART_R + '.h32'), "
+            + "r01.PCMR01_STRAT_PART_R, r01.PCMR01_CHIP_D, r01.PCMR01_HARDWARE_PART_R, r01.PCMR01_CATCHWORD_C, "
+            + "r01.PCMR01_RELD_Y, tblMainMicro.PCMR19_MICRO_TYP_X, r01.PCMR24_REL_USG_C, "
+            + "(SELECT TOP 1 PCMS01_PGM_N FROM WPCMS01_PGM_DESC "
+            + "INNER JOIN WPCMR04_PGM_PART ON WPCMS01_PGM_DESC.PCMS01_PGM_K = WPCMR04_PGM_PART.PCMS01_PGM_K "
+            + "WHERE WPCMR04_PGM_PART.PCMR01_PART_R = r01.PCMR01_PART_R), "
+            + "(SELECT TOP 1 PCMR17_SUPL_X FROM WPCMR17_SUPL WHERE WPCMR17_SUPL.PCMR17_SUPL_C = r01.PCMR17_SUPL_C), "
+            + "(SELECT TOP 1 PCMS01_ENG_N FROM WPCMS01_PGM_DESC "
+            + "INNER JOIN WPCMR04_PGM_PART ON WPCMS01_PGM_DESC.PCMS01_PGM_K = WPCMR04_PGM_PART.PCMS01_PGM_K "
+            + "WHERE WPCMR04_PGM_PART.PCMR01_PART_R = r01.PCMR01_PART_R), " + "r01.PCMR15_REL_TYP_C, PCMR24_REL_USG_X, "
+            + "(SELECT TOP 1 PCMR02_FILE_N FROM WPCMR03_FIRMWARE "
+            + "INNER JOIN WPCMR02_PART_FIRMWARE ON WPCMR03_FIRMWARE.PCMR03_FIRMWARE_K = WPCMR02_PART_FIRMWARE.PCMR03_FIRMWARE_K "
+            + "WHERE WPCMR03_FIRMWARE.PCMR03_FIRMWARE_N LIKE '%PDX%' AND WPCMR02_PART_FIRMWARE.PCMR01_PART_R = r01.PCMR01_PART_R) AS Pdx, "
+            + "(SELECT TOP 1 PCMR02_FILE_N FROM WPCMR03_FIRMWARE "
+            + "INNER JOIN WPCMR02_PART_FIRMWARE ON WPCMR03_FIRMWARE.PCMR03_FIRMWARE_K = WPCMR02_PART_FIRMWARE.PCMR03_FIRMWARE_K "
+            + "WHERE WPCMR03_FIRMWARE.PCMR03_FIRMWARE_N LIKE '%PART II%' AND WPCMR02_PART_FIRMWARE.PCMR01_PART_R = r01.PCMR01_PART_R) AS PartII, "
+            + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'AppSignId') AS AppSigningKey, "
+            + "PCMR14_CAN_NODE_D, PCMR14_CAN_EXPLCT_GTWY_C, PCMR14_CAN_SUB_NODE_ADDR_X, PCMR14_CAN_SUB_NETWRK_ADDR_X, "
+            + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'SblMicroType') AS SblMicroType, "
+            + "PCMR19_MICRO_PROTO_TYP_X, " + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'AppSignIdProto') AS AppSigningKeyProto, "
+            + "(SELECT TOP 1 PCMR47_FILE_N FROM WPCMR47_MICRO_TYP_FILE "
+            + "WHERE WPCMR47_MICRO_TYP_FILE.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C AND WPCMR47_MICRO_TYP_FILE.PCMR47_FILE_TYP_C = 'SblMicroTypeProto') AS SblMicroTypeProto "
+            + "FROM WPCMR01_PART r01 "
+            + "INNER JOIN WPCMR14_MODULE_TYP tblModType ON r01.PCMR14_MODULE_TYP_C = tblModType.PCMR14_MODULE_TYP_C "
+            + "LEFT JOIN WPCMR19_MICRO_TYP tblMainMicro ON r01.PCMR19_MICRO_TYP_C = tblMainMicro.PCMR19_MICRO_TYP_C "
+            + "LEFT JOIN WPCMR24_REL_USG tblRelUsage ON r01.PCMR24_REL_USG_C = tblRelUsage.PCMR24_REL_USG_C "
+            + "WHERE r01.PCMR15_REL_TYP_C != 'SBL' AND r01.PCMR01_STAT_C IN ('HardLock', 'Complete') "
+            + "AND r01.PCMR01_STRAT_CALIB_PART_R NOT IN (SELECT PCMR01_STRAT_CALIB_PART_R FROM WPCMR01_PART "
+            + "WHERE PCMR01_STRAT_BUILD_COMP_F = 'Y' AND PCMR01_STRAT_CALIB_PART_R IS NOT NULL) AND r01.PCMR01_PART_R in :partNumbers AND r01.PCMR01_STRAT_CALIB_PART_R in :swPartNumbers AND r01.PCMR01_WERS_NTC_R in :wersNotices "
+            + "ORDER BY PCMR01_WERS_NTC_R, PCMR01_STRAT_CALIB_PART_R", nativeQuery = true)
+    List<Object[]> fetchAllPrismParts(@Param("partNumbers") List<String> partNumbers,
+                                      @Param("swPartNumbers") List<String> swPartNumbers, @Param("wersNotices") List<String> wersNotices);
+
+    @Query(value = "SELECT tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, " + "tblProg.PCMS01_MDL_YR_R, "
+            + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' " + "AND tblSoftRel.PCMR01_RELD_F = 'N' "
+            + "AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN', 'HWCUT', 'VCMHC') "
+            + "AND (UPPER(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId "
+            + "OR tblSoftRel.PCMR01_PROJ_CTL_ENG_CDSID_C = :userId "
+            + "OR tblSoftRel.PCMR01_PWRTRN_CALIB_CDSID_C = :userId) "
+            + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> findReleaseInProcessByUserId(@Param("userId") String userId);
+
+    @Query(value = "SELECT " + "(SELECT MAX(PCMR01_HARDWARE_PART_R) " + "FROM WPCMR01_PART tblSub1 "
+            + "WHERE tblSub1.PCMR14_MODULE_TYP_C = :moduleTypeCode "
+            + "AND tblSub1.PCMR15_REL_TYP_C = :releaseTypeCode "
+            + "AND tblSub1.PCMR01_HARDWARE_PART_R LIKE (tblB.fldPn + '_')) AS latestPart "
+            + "FROM (SELECT DISTINCT SUBSTRING(tblA.PCMR01_HARDWARE_PART_R, 1, LEN(tblA.PCMR01_HARDWARE_PART_R) - 1) AS fldPn "
+            + "FROM WPCMR01_PART tblA " + "WHERE tblA.PCMR14_MODULE_TYP_C = :moduleTypeCode "
+            + "AND tblA.PCMR15_REL_TYP_C = :releaseTypeCode " + "AND tblA.PCMR01_HARDWARE_PART_R IS NOT NULL "
+            + "AND LEN(tblA.PCMR01_HARDWARE_PART_R) > 1) tblB " + "ORDER BY 1", nativeQuery = true)
+    List<String> fetchHardwarePartNumbersByReleaseTypeAndModuleType(@Param("moduleTypeCode") String moduleTypeCode,
+                                                                    @Param("releaseTypeCode") String releaseTypeCode);
+
+    @Query(value = "SELECT TOP 1 r19.PCMR19_MICRO_TYP_X " + "FROM WPCMR01_PART r01 "
+            + "INNER JOIN WPCMR19_MICRO_TYP r19 " + "ON r19.PCMR19_MICRO_TYP_C = r01.PCMR19_MICRO_TYP_C "
+            + "WHERE r01.PCMR01_HARDWARE_PART_R = :hardwarePart " + "AND r01.PCMR01_RELD_F = 'Y' "
+            + "ORDER BY r01.PCMR01_CREATE_S DESC", nativeQuery = true)
+    String findMicroTypeByHardwarePart(@Param("hardwarePart") String hardwarePart);
+
+    @Query(value = "SELECT " + "tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, "
+            + "tblProg.PCMS01_MDL_YR_R, " + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' " + "AND tblSoftRel.PCMR01_RELD_F = 'N' "
+            + "AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN','HWCUT','VCMHC') "
+            + "AND tblSoftRel.PCMR01_STAT_C IN ('NewPnRequest') " + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, "
+            + "tblProg.PCMS01_MDL_YR_R, " + "tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> fetchProgDetailsForPartRequest();
+
+    @Query(value = "SELECT " + "tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, "
+            + "tblProg.PCMS01_MDL_YR_R, " + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' " + "AND upper(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId "
+            + "AND tblSoftRel.PCMR01_RELD_F = 'N' "
+            + "AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN','HWCUT','VCMHC') "
+            + "AND tblSoftRel.PCMR01_STAT_C IN ('PeadEdit','PeadComplete','FirmwareEdit','SoftLock') "
+            + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> fetchProgDetailsForEditBaseModuleByUserId(@Param("userId") String userId);
+
+    @Query(value = "SELECT " + "tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, "
+            + "tblProg.PCMS01_MDL_YR_R, " + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' " + "AND upper(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId "
+            + "AND tblSoftRel.PCMR01_RELD_F = 'N' " + "AND tblSoftRel.PCMR01_STAT_C IN ('PeadComplete') "
+            + "AND (EXISTS (SELECT tblSub.PCMR01_PART_R " + "FROM WPCMR21_SIGNOFF_PART tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('CALUP','CLSUP','CLOBD','SUDEP','CLDEP','PCDEP','SUDEV','CLDEV','PCDEV')) "
+            + "OR EXISTS (SELECT tblSub.PCMR01_PART_R " + "                 FROM WPCMR02_PART_FIRMWARE tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R)) " + "AND tblSoftRel.PCMR17_SUPL_C IS NOT NULL "
+            + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> fetchProgDetailsForSendFirmwareDataByUserId(@Param("userId") String userId);
+
+    @Query(value = "SELECT " + "tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, "
+            + "tblProg.PCMS01_MDL_YR_R, " + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "INNER JOIN WPCMR02_PART_FIRMWARE tblFWJ ON tblSoftRel.PCMR01_PART_R = tblFWJ.PCMR01_PART_R "
+            + "INNER JOIN WPCMR03_FIRMWARE tblFW ON tblFWJ.PCMR03_FIRMWARE_K = tblFW.PCMR03_FIRMWARE_K "
+            + "INNER JOIN WPCMR13_FIRMWARE_ROLE tblFwRole ON tblFW.PCMR03_FIRMWARE_K = tblFwRole.PCMR03_FIRMWARE_K "
+            + "INNER JOIN WPCM002_ROLE tblRole ON tblFwRole.PCM002_ROLE_K = tblRole.PCM002_ROLE_K "
+            + "AND (tblSoftRel.PCMR17_SUPL_C = tblRole.PCMR17_SUPL_C OR tblRole.PCMR17_SUPL_C IS NULL) "
+            + "INNER JOIN WPCM003_USER_ROLE tblUserRoles ON tblRole.PCM002_ROLE_K = tblUserRoles.PCM002_ROLE_K "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' " + "AND tblSoftRel.PCMR01_RELD_F = 'N' "
+            + "AND tblSoftRel.PCMR01_STAT_C = 'FirmwareEdit' " + "AND (" + "tblUserRoles.PCM001_USER_CDSID_C = :userId "
+            + "OR (tblUserRoles.PCM001_USER_CDSID_C = '[DRENG]' AND tblSoftRel.PCMR01_ENGINEER_CDSID_C = :userId) "
+            + ") "
+            + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> fetchProgDetailsForCompleteFirmwareByUserId(@Param("userId") String userId);
+
+    @Query(value = "SELECT tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, " + "tblProg.PCMS01_MDL_YR_R, "
+            + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel " + "LEFT JOIN WPCMR04_PGM_PART tblProgJ "
+            + "ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R " + "LEFT JOIN WPCMS01_PGM_DESC tblProg "
+            + "ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K " + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' "
+            + "AND upper(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId " + "AND tblSoftRel.PCMR01_RELD_F = 'N' "
+            + "AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN','HWCUT','VCMHC') " + "AND ( ("
+            + "tblSoftRel.PCMR01_STAT_C IN ('PeadComplete') " + "AND NOT EXISTS (SELECT tblSub.PCMR01_PART_R "
+            + "FROM WPCMR21_SIGNOFF_PART tblSub " + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('CALUP','CLSUP','CLOBD','SUDEP','CLDEP','PCDEP','SUDEV','CLDEV','PCDEV')) "
+            + "AND EXISTS (SELECT tblSub.PCMR01_PART_R " + "FROM WPCMR21_SIGNOFF_PART tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('EOLPT','EOLVO','PEERR','PEERA','HWPER','SUPPR','IVSEM')) "
+            + "AND NOT EXISTS (SELECT tblSub.PCMR01_PART_R " + "FROM WPCMR02_PART_FIRMWARE tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R) " + ") " + "OR "
+            + "(tblSoftRel.PCMR01_STAT_C IN ('FirmwareEdit') " + "AND EXISTS (SELECT tblSub.PCMR01_PART_R "
+            + "FROM WPCMR21_SIGNOFF_PART tblSub " + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('EOLPT','EOLVO','PEERR','PEERA','HWPER','SUPPR','IVSEM')) " + ") "
+            + ") "
+            + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> fetchProgDetailsForSendPeerReviewByUserId(@Param("userId") String userId);
+
+    @Query(value = "SELECT tblSoftRel.PCMR01_WERS_NTC_R, " + "tblSoftRel.PCMR01_PART_R, " + "tblProg.PCMS01_MDL_YR_R, "
+            + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel " + "LEFT JOIN WPCMR04_PGM_PART tblProgJ "
+            + "ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R " + "LEFT JOIN WPCMS01_PGM_DESC tblProg "
+            + "ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K " + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' "
+            + "AND tblSoftRel.PCMR01_WERS_NTC_R IS NOT NULL " + "AND tblSoftRel.PCMR01_WERS_NTC_R <> '' "
+            + "AND UPPER(tblSoftRel.PCMR01_ENGINEER_CDSID_C) = :userId " + "AND tblSoftRel.PCMR01_RELD_F = 'N' "
+            + "AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN','HWCUT','VCMHC') " + "AND ( "
+            + "(tblSoftRel.PCMR01_STAT_C IN ('SoftLock')) " + "OR (tblSoftRel.PCMR01_STAT_C IN ('PeadComplete') "
+            + "AND NOT EXISTS ( " + "SELECT 1 " + "FROM WPCMR21_SIGNOFF_PART tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('EOLPT','EOLVO','PEERR','PEERA','HWPER','SUPPR','IVSEM','CALUP','CLSUP','CLOBD','SUDEP','CLDEP','PCDEP','SUDEV','CLDEV','PCDEV') "
+            + ") " + "AND NOT EXISTS ( " + "SELECT 1 " + "FROM WPCMR02_PART_FIRMWARE tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R " + ") " + ") "
+            + "OR (tblSoftRel.PCMR01_STAT_C IN ('FirmwareEdit') " + "AND tblSoftRel.PCMR24_REL_USG_C IN ('RC', 'PROT') "
+            + "AND NOT EXISTS ( " + "SELECT 1 " + "FROM WPCMR21_SIGNOFF_PART tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "AND tblSub.PCMR20_SIGNOFF_TYP_C IN ('EOLPT','EOLVO','PEERR','PEERA','HWPER','SUPPR','IVSEM','CALUP','CLSUP','CLOBD','SUDEP','CLDEP','PCDEP','SUDEV','CLDEV','PCDEV') "
+            + ") " + "AND NOT EXISTS ( " + "SELECT 1 " + "FROM WPCMR02_PART_FIRMWARE tblSub "
+            + "WHERE tblSub.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R " + "AND tblSub.PCMR02_APRVD_Y IS NULL " + ") "
+            + ") " + ") "
+            + "ORDER BY tblSoftRel.PCMR01_WERS_NTC_R, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> fetchProgDetailsForHardLockByUserId(@Param("userId") String userId);
+
+    @Query(value = "SELECT tblSoftRel.PCMR01_CONCERN_C, " + "tblSoftRel.PCMR01_PART_R, " + "tblProg.PCMS01_MDL_YR_R, "
+            + "tblProg.PCMS01_PGM_N, tblSoftRel.PCMR01_WERS_NTC_R " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' "
+            + "AND tblSoftRel.PCMR01_PART_R IN (SELECT PCMR01_PART_R FROM WPCMR21_SIGNOFF_PART "
+            + "WHERE PCMR20_SIGNOFF_TYP_C = :signoffType AND PCMR21_SIGNOFF_S IS NULL AND PCMR21_REQT_Y IS NOT NULL) "
+            + "AND EXISTS (SELECT tblUserRoles.PCM002_ROLE_K " + "FROM WPCMR35_SIGNOFF_PART_ROLE tblSoRole "
+            + "INNER JOIN WPCM003_USER_ROLE tblUserRoles ON tblSoRole.PCM002_ROLE_K = tblUserRoles.PCM002_ROLE_K "
+            + "INNER JOIN WPCM002_ROLE tblRole ON tblUserRoles.PCM002_ROLE_K = tblRole.PCM002_ROLE_K "
+            + "WHERE tblSoftRel.PCMR01_PART_R = tblSoRole.PCMR01_PART_R "
+            + "AND UPPER(tblUserRoles.PCM001_USER_CDSID_C) = :userId "
+            + "AND tblSoRole.PCMR20_SIGNOFF_TYP_C = :signoffType "
+            + "AND tblRole.PCM002_ROLE_TYP_C = 'Signoff Access') "
+            + "AND tblSoftRel.PCMR01_STAT_C IN (:releaseStatuses) "
+            + "ORDER BY tblSoftRel.PCMR01_CONCERN_C, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> findSignoffConcerns(@Param("signoffType") String signoffType, @Param("userId") String userId,
+                                       @Param("releaseStatuses") List<String> releaseStatuses);
+
+    @Query(value = "SELECT tblSoftRel.PCMR01_WERS_NTC_R, " + "tblSoftRel.PCMR01_PART_R, " + "tblProg.PCMS01_MDL_YR_R, "
+            + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProgJ ON tblSoftRel.PCMR01_PART_R = tblProgJ.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProgJ.PCMS01_PGM_K = tblProg.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' "
+            + "AND tblSoftRel.PCMR01_PART_R IN (SELECT PCMR01_PART_R FROM WPCMR21_SIGNOFF_PART "
+            + "WHERE PCMR20_SIGNOFF_TYP_C = :signoffType AND PCMR21_SIGNOFF_S IS NULL AND PCMR21_REQT_Y IS NOT NULL) "
+            + "AND EXISTS (SELECT tblUserRoles.PCM002_ROLE_K " + "FROM WPCMR35_SIGNOFF_PART_ROLE tblSoRole "
+            + "INNER JOIN WPCM003_USER_ROLE tblUserRoles ON tblSoRole.PCM002_ROLE_K = tblUserRoles.PCM002_ROLE_K "
+            + "INNER JOIN WPCM002_ROLE tblRole ON tblUserRoles.PCM002_ROLE_K = tblRole.PCM002_ROLE_K "
+            + "WHERE tblSoftRel.PCMR01_PART_R = tblSoRole.PCMR01_PART_R "
+            + "AND UPPER(tblUserRoles.PCM001_USER_CDSID_C) = :userId "
+            + "AND tblSoRole.PCMR20_SIGNOFF_TYP_C = :signoffType "
+            + "AND tblRole.PCM002_ROLE_TYP_C = 'Signoff Access') "
+            + "AND tblSoftRel.PCMR01_STAT_C IN (:releaseStatuses) "
+            + "ORDER BY tblSoftRel.PCMR01_WERS_NTC_R, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N", nativeQuery = true)
+    List<Object[]> findSignoffConcernsForPostHardLock(@Param("signoffType") String signoffType,
+                                                      @Param("userId") String userId, @Param("releaseStatuses") List<String> releaseStatuses);
+
+    @Query(value = "SELECT tblSoftRel.PCMR01_WERS_NTC_R, " + "tblSoftRel.PCMR01_PART_R, " + "tblProg.PCMS01_MDL_YR_R, "
+            + "tblProg.PCMS01_PGM_N " + "FROM WPCMR01_PART tblSoftRel "
+            + "INNER JOIN WPCMR14_MODULE_TYP tblModType ON tblSoftRel.PCMR14_MODULE_TYP_C = tblModType.PCMR14_MODULE_TYP_C "
+            + "INNER JOIN WPCMR15_REL_TYP tblRelType ON tblSoftRel.PCMR15_REL_TYP_C = tblRelType.PCMR15_REL_TYP_C "
+            + "LEFT JOIN WPCMR04_PGM_PART tblProg_SoftRel ON tblProg_SoftRel.PCMR01_PART_R = tblSoftRel.PCMR01_PART_R "
+            + "LEFT JOIN WPCMS01_PGM_DESC tblProg ON tblProg.PCMS01_PGM_K = tblProg_SoftRel.PCMS01_PGM_K "
+            + "WHERE tblSoftRel.PCMR01_ARCH_F = 'N' " + "  AND tblSoftRel.PCMR01_RELD_F = 'Y' "
+            + "AND tblSoftRel.PCMR15_REL_TYP_C NOT IN ('HRDCN','HWCUT','VCMHC') "
+            + "AND PCMR04_IVS_SERVICE_ACTION_R IS NULL " + "  AND (tblSoftRel.PCMR01_PART_R IN (SELECT PCMR01_PART_R "
+            + "FROM WPCMR21_SIGNOFF_PART " + "WHERE PCMR20_SIGNOFF_TYP_C = 'ISVAC' " + "AND PCMR21_SIGNOFF_S IS NULL "
+            + "AND PCMR21_REQT_Y IS NOT NULL) " + "OR tblSoftRel.PCMR01_PART_R IN (SELECT tSub1.PCMR01_PART_R "
+            + "FROM WPCMR21_SIGNOFF_PART tSub1 "
+            + "INNER JOIN WPCMR04_PGM_PART tSub2 ON tSub1.PCMR01_PART_R = tSub2.PCMR01_PART_R "
+            + "WHERE PCMR20_SIGNOFF_TYP_C = 'ISVAC' " + "AND PCMR21_SIGNOFF_S IS NOT NULL "
+            + "AND PCMR04_IVS_SERVICE_ACTION_R IS NULL)) " + "AND EXISTS (SELECT tblUserRoles.PCM002_ROLE_K "
+            + "FROM WPCMR35_SIGNOFF_PART_ROLE tblSoRole "
+            + "INNER JOIN WPCM003_USER_ROLE tblUserRoles ON tblSoRole.PCM002_ROLE_K = tblUserRoles.PCM002_ROLE_K "
+            + "INNER JOIN WPCM002_ROLE tblRole ON tblUserRoles.PCM002_ROLE_K = tblRole.PCM002_ROLE_K "
+            + "WHERE tblSoftRel.PCMR01_PART_R = tblSoRole.PCMR01_PART_R "
+            + "AND UPPER(tblUserRoles.PCM001_USER_CDSID_C) = :userId " + "AND tblSoRole.PCMR20_SIGNOFF_TYP_C = 'ISVAC' "
+            + "AND tblRole.PCM002_ROLE_TYP_C = 'Signoff Access') " + "AND EXISTS (SELECT tblSub.PCMR01_PART_R "
+            + "FROM WPCMR21_SIGNOFF_PART tblSub " + "WHERE tblSoftRel.PCMR01_PART_R = tblSub.PCMR01_PART_R "
+            + "AND tblSub.PCMR21_USER_CDSID_C = :userId " + "AND tblSub.PCMR20_SIGNOFF_TYP_C = 'ISVAC' "
+            + "AND tblSub.PCMR21_SIGNOFF_S IS NULL) " + "AND (tblSoftRel.PCMR01_ENGINEER_CDSID_C = :userId "
+            + "AND EXISTS (SELECT tblUserRoles.PCM002_ROLE_K " + "FROM WPCMR35_SIGNOFF_PART_ROLE tblSoRole "
+            + "INNER JOIN WPCM003_USER_ROLE tblUserRoles ON tblSoRole.PCM002_ROLE_K = tblUserRoles.PCM002_ROLE_K "
+            + "INNER JOIN WPCM002_ROLE tblRole ON tblUserRoles.PCM002_ROLE_K = tblRole.PCM002_ROLE_K "
+            + "WHERE tblSoftRel.PCMR01_PART_R = tblSoRole.PCMR01_PART_R "
+            + "AND UPPER(tblUserRoles.PCM001_USER_CDSID_C) = '[DRENG]' "
+            + "AND tblSoRole.PCMR20_SIGNOFF_TYP_C = 'ISVAC' " + "AND tblRole.PCM002_ROLE_TYP_C = 'Signoff Access' "
+            + "AND (tblSoftRel.PCMR17_SUPL_C = tblRole.PCMR17_SUPL_C OR tblRole.PCMR17_SUPL_C IS NULL))) "
+            + "ORDER BY tblSoftRel.PCMR01_WERS_NTC_R, tblProg.PCMS01_MDL_YR_R, tblProg.PCMS01_PGM_N, "
+            + "tblProg.PCMS01_PLAT_N, tblProg.PCMS01_ENG_N, tblProg.PCMS01_TRANS_N", nativeQuery = true)
+    List<Object[]> findServiceActions(@Param("userId") String userId);
+
+    @Query("SELECT p.hardwarePartR FROM Part p WHERE p.partR = :partR")
+    String findHardwarePartRByPartR(@Param("partR") String partR);
+
+    @Transactional
+    @Modifying
+    @Query(value = "DELETE FROM WPCMR02_PART_FIRMWARE wpf " + "WHERE wpf.PCMR01_PART_R IN (" + "SELECT p.PCMR01_PART_R "
+            + "FROM WPCMR01_PART p " + "WHERE p.PCMR01_HARDWARE_PART_R = :hardwarePartNumber "
+            + "AND p.PCMR01_PART_R LIKE :partNumber " + "AND p.PCMR15_REL_TYP_C = :releaseTypeCode "
+            + "AND p.PCMR01_RELD_F = 'N')", nativeQuery = true)
+    void deleteFirmwareByPartAndReleaseType(@Param("hardwarePartNumber") String hardwarePartNumber,
+                                            @Param("partNumber") String partNumber, @Param("releaseTypeCode") String releaseTypeCode);
+
+    @Transactional
+    @Modifying
+    @Query(value = "DELETE FROM WPCMR01_PART p " + "WHERE p.PCMR01_HARDWARE_PART_R = :hardwarePartNumber "
+            + "AND p.PCMR01_PART_R LIKE :partNumber " + "AND p.PCMR15_REL_TYP_C = :releaseTypeCode "
+            + "AND p.PCMR01_RELD_F = 'N'", nativeQuery = true)
+    void deletePartByPartAndReleaseType(@Param("hardwarePartNumber") String hardwarePartNumber,
+                                        @Param("partNumber") String partNumber, @Param("releaseTypeCode") String releaseTypeCode);
+
+    @Query(value = "SELECT p.PCMR01_PART_R " + "FROM WPCMR01_PART p " + "WHERE p.PCMR01_HARDWARE_PART_R IN ("
+            + "    SELECT tblSub.PCMR01_HARDWARE_PART_R " + "    FROM WPCMR01_PART tblSub "
+            + "    WHERE tblSub.PCMR01_PART_R = :partNumber) " + "AND p.PCMR15_REL_TYP_C = :releaseType "
+            + "AND p.PCMR01_RELD_F = 'Y' " + "ORDER BY p.PCMR01_PART_R DESC", nativeQuery = true)
+    String findHardwareAssemblyPartNumber(@Param("partNumber") String partNumber,
+                                          @Param("releaseType") String releaseType);
+
+    @Transactional
+    @Modifying
+    @Query(value = "UPDATE WPCMR01_PART p "
+            + "SET p.PCMR17_SUPL_C = (SELECT tbl.PCMR17_SUPL_C FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber), "
+            + "p.PCMR19_MICRO_TYP_C = (SELECT tbl.PCMR19_MICRO_TYP_C FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber), "
+            + "p.PCMR01_DOMAIN_N = (SELECT tbl.PCMR01_DOMAIN_N FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber), "
+            + "p.PCMR01_VEH_CAN_TYP_C = (SELECT tbl.PCMR01_VEH_CAN_TYP_C FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber), "
+            + "p.PCMR01_HCR_R = (SELECT tbl.PCMR01_HCR_R FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber), "
+            + "p.PCMR01_CORE_HARDWARE_PART_R = (SELECT tbl.PCMR01_CORE_HARDWARE_PART_R FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber), "
+            + "p.PCMR01_CORE_HARDWARE_CDSID_C = (SELECT tbl.PCMR01_CORE_HARDWARE_CDSID_C FROM WPCMR01_PART tbl WHERE tbl.PCMR01_PART_R = :hardwareAssemblyPartNumber) "
+            + "WHERE p.PCMR01_PART_R = :partNumber", nativeQuery = true)
+    void updatePart(@Param("hardwareAssemblyPartNumber") String hardwareAssemblyPartNumber,
+                    @Param("partNumber") String partNumber);
+
+}
