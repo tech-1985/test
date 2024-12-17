@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/settings/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/settings/1.0.0
+                              http://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <!-- Local Repository -->
+    <!-- You can specify a custom location for the local repository where Maven stores downloaded dependencies -->
+    <localRepository>C:/Users/prave.PRAVEENORUGANTI/.m2/repository</localRepository>
+
+    <!-- Mirrors -->
+    <!-- Mirrors are used to speed up the download process by providing a closer mirror for Maven central -->
+    <mirrors>
+        <mirror>
+            <id>central</id>
+            <mirrorOf>central</mirrorOf>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <blocked>false</blocked>
+        </mirror>
+    </mirrors>
+
+    <!-- Proxies -->
+    <!-- Configure proxy if you're behind a proxy server -->
+  <!--  <proxies>
+        <proxy>
+            <id>example-proxy</id>
+            <active>true</active>
+            <protocol>http</protocol>
+            <host>proxy.example.com</host>
+            <port>8080</port>
+            <username>proxyuser</username>
+            <password>proxypassword</password>
+            <nonProxyHosts>www.google.com|*.example.com</nonProxyHosts>
+        </proxy>
+    </proxies>-->
+
+    <!-- Servers -->
+    <!-- Define authentication settings for your repositories or deployment -->
+    <!-- <servers>
+        <server>
+            <id>central</id>
+            <username>your-username</username>
+            <password>your-password</password>
+        </server>
+    </servers>-->
+
+    <!-- Profiles -->
+    <!-- Enable profiles for specific build settings, for example, "release" or "dev" -->
+    <profiles>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2</url>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
+
+    <!-- Active Profiles -->
+    <!-- You can activate specific profiles for different environments -->
+    <activeProfiles>
+        <activeProfile>default</activeProfile>
+    </activeProfiles>
+
+</settings>
